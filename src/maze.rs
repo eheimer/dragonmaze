@@ -16,6 +16,8 @@ pub struct DragonMaze {
     pub exit: (usize, usize),
     pub setup: bool,
     pub score: i32,
+    pub autoplay: bool,
+    pub AUTOPLAY_DELAY: u64,
 }
 
 // Bitmask constants for the walls
@@ -43,6 +45,8 @@ impl DragonMaze {
             exit: (MAZE_SIZE - 1, rand::rng().random_range(0..MAZE_SIZE)),
             setup: true,
             score: 0,
+            autoplay: false,
+            AUTOPLAY_DELAY: 20,
         };
 
         game.score = 1000;
@@ -101,7 +105,8 @@ impl DragonMaze {
         visited[start_x][start_y] = true;
 
         while let Some((x, y)) = stack.pop() {
-            std::thread::sleep(std::time::Duration::from_millis(PAUSE));
+            let pause_duration = if self.autoplay { 20 } else { PAUSE };
+            std::thread::sleep(std::time::Duration::from_millis(pause_duration));
             let mut neighbors = Vec::new();
 
             if x > 0 && !visited[x - 1][y] {
@@ -120,7 +125,7 @@ impl DragonMaze {
             if !neighbors.is_empty() {
                 // I want to pause here for an arbitrary amount of time
                 // so the user can see the maze being generated
-                std::thread::sleep(std::time::Duration::from_millis(PAUSE));
+                std::thread::sleep(std::time::Duration::from_millis(pause_duration));
                 stack.push((x, y));
                 let &(nx, ny, wall, opposite_wall) = neighbors.choose(&mut rng).unwrap();
                 self.maze[x][y] &= !wall; // Remove the wall between the current cell and the neighbor

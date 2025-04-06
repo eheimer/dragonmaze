@@ -8,6 +8,7 @@ use crossterm::{
 };
 use maze::DragonMaze;
 use std::io::{self, Write};
+use rand::Rng;
 
 fn print_instructions() {
     println!("WELCOME TO THE DRAGON'S MAZE!");
@@ -39,6 +40,31 @@ fn main() {
     execute!(io::stdout(), EnterAlternateScreen, Clear(ClearType::All)).unwrap();
     print_instructions();
 
+    let mut game = DragonMaze::new();
+    if game.autoplay {
+        enable_raw_mode().unwrap();
+        let directions = [(1, 0), (-1, 0), (0, 1), (0, -1)];
+        let mut rng = rand::rng();
+        loop {
+            let (dx, dy) = directions[rng.random_range(0..directions.len())];
+            game.move_player(dx, dy);
+            if game.autoplay {
+                std::thread::sleep(std::time::Duration::from_millis(game.AUTOPLAY_DELAY));
+            }
+            game.move_dragon();
+            if game.player == game.exit {
+                game.win();
+                break;
+            } else if game.player == game.dragon {
+                game.lose();
+                break;
+            }
+        }
+        disable_raw_mode().unwrap();
+        execute!(io::stdout(), cursor::MoveTo(0, 24)).unwrap();
+        return;
+    }
+
     // Wait for the user to type "go" to start the game
     print!("TYPE 'GO' TO BEGIN ");
     io::stdout().flush().unwrap();
@@ -49,16 +75,14 @@ fn main() {
     }
 
     enable_raw_mode().unwrap(); // Enable raw mode to suppress character output
-    let mut game = DragonMaze::new();
-    loop {
-        if let Event::Key(KeyEvent { code, .. }) = read().unwrap() {
-            match code {
-                KeyCode::Char('d') | KeyCode::Right => game.move_player(1, 0),
-                KeyCode::Char('a') | KeyCode::Left => game.move_player(-1, 0),
-                KeyCode::Char('w') | KeyCode::Up => game.move_player(0, -1),
-                KeyCode::Char('s') | KeyCode::Down => game.move_player(0, 1),
-                KeyCode::Esc => break, // Allow exiting the loop with the Esc key
-                _ => continue,
+    if game.autoplay {
+        let directions = [(1, 0), (-1, 0), (0, 1), (0, -1)];
+        let mut rng = rand::rng();
+        loop {
+            let (dx, dy) = directions[rng.random_range(0..directions.len())];
+            game.move_player(dx, dy);
+            if game.autoplay {
+                std::thread::sleep(std::time::Duration::from_millis(game.AUTOPLAY_DELAY));
             }
             game.move_dragon();
             if game.player == game.exit {
@@ -67,6 +91,27 @@ fn main() {
             } else if game.player == game.dragon {
                 game.lose();
                 break;
+            }
+        }
+    } else {
+        loop {
+            if let Event::Key(KeyEvent { code, .. }) = read().unwrap() {
+                match code {
+                    KeyCode::Char('d') | KeyCode::Right => game.move_player(1, 0),
+                    KeyCode::Char('a') | KeyCode::Left => game.move_player(-1, 0),
+                    KeyCode::Char('w') | KeyCode::Up => game.move_player(0, -1),
+                    KeyCode::Char('s') | KeyCode::Down => game.move_player(0, 1),
+                    KeyCode::Esc => break, // Allow exiting the loop with the Esc key
+                    _ => continue,
+                }
+                game.move_dragon();
+                if game.player == game.exit {
+                    game.win();
+                    break;
+                } else if game.player == game.dragon {
+                    game.lose();
+                    break;
+                }
             }
         }
     }
