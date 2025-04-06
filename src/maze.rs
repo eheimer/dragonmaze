@@ -15,6 +15,7 @@ pub struct DragonMaze {
     pub dragon: (usize, usize),
     pub exit: (usize, usize),
     pub setup: bool,
+    pub score: i32,
 }
 
 // Bitmask constants for the walls
@@ -41,7 +42,10 @@ impl DragonMaze {
             dragon: (MAZE_SIZE - 1, rand::rng().random_range(0..MAZE_SIZE)),
             exit: (MAZE_SIZE - 1, rand::rng().random_range(0..MAZE_SIZE)),
             setup: true,
+            score: 0,
         };
+
+        game.score = 1000;
 
         //hide the cursor
         execute!(io::stdout(), cursor::Hide).unwrap();
@@ -407,12 +411,14 @@ impl DragonMaze {
         };
         if !self.has_path(old_x, old_y, direction) {
             self.draw_cell_wall(old_x, old_y, direction);
+            self.score -= 1;
             return;
         }
 
         self.player = (new_x, new_y);
         self.draw_cell(old_x, old_y);
         self.draw_cell(new_x, new_y);
+        self.score -= 1;
     }
 
     pub fn move_dragon(&mut self) {
@@ -440,12 +446,16 @@ impl DragonMaze {
     }
 
     pub fn win(&self) {
-        execute!(io::stdout(), cursor::MoveTo(0, 23)).unwrap();
+        execute!(io::stdout(), cursor::MoveTo(0, 21), Clear(ClearType::CurrentLine)).unwrap();
+        execute!(io::stdout(), cursor::MoveTo(0, 22)).unwrap();
         println!("YOU WIN!");
+        execute!(io::stdout(), cursor::MoveTo(0, 23)).unwrap();
+        println!("SCORE: {}", self.score);
     }
 
     pub fn lose(&self) {
-        execute!(io::stdout(), cursor::MoveTo(0, 23)).unwrap();
+        execute!(io::stdout(), cursor::MoveTo(0, 21), Clear(ClearType::CurrentLine)).unwrap();
+        execute!(io::stdout(), cursor::MoveTo(0, 22)).unwrap();
         println!("THE DRAGON GOT YOU!");
     }
 }
