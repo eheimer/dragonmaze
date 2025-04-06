@@ -53,10 +53,10 @@ fn main() {
     loop {
         if let Event::Key(KeyEvent { code, .. }) = read().unwrap() {
             match code {
-                KeyCode::Char('d') => game.move_player(1, 0),
-                KeyCode::Char('a') => game.move_player(-1, 0),
-                KeyCode::Char('w') => game.move_player(0, -1),
-                KeyCode::Char('s') => game.move_player(0, 1),
+                KeyCode::Char('d') | KeyCode::Right => game.move_player(1, 0),
+                KeyCode::Char('a') | KeyCode::Left => game.move_player(-1, 0),
+                KeyCode::Char('w') | KeyCode::Up => game.move_player(0, -1),
+                KeyCode::Char('s') | KeyCode::Down => game.move_player(0, 1),
                 KeyCode::Esc => break, // Allow exiting the loop with the Esc key
                 _ => continue,
             }
