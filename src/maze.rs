@@ -45,7 +45,7 @@ impl DragonMaze {
             exit: (MAZE_SIZE - 1, rand::rng().random_range(0..MAZE_SIZE)),
             setup: true,
             score: 0,
-            autoplay: false,
+            autoplay: true,
             AUTOPLAY_DELAY: 20,
         };
 

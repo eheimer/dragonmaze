@@ -37,11 +37,13 @@ fn print_instructions() {
 }
 
 fn main() {
+    let autoplay = true;
     execute!(io::stdout(), EnterAlternateScreen, Clear(ClearType::All)).unwrap();
     print_instructions();
 
-    let mut game = DragonMaze::new();
-    if game.autoplay {
+    if autoplay {
+        let mut game = DragonMaze::new();
+    
         enable_raw_mode().unwrap();
         let directions = [(1, 0), (-1, 0), (0, 1), (0, -1)];
         let mut rng = rand::rng();
@@ -73,6 +75,8 @@ fn main() {
     if input.trim().to_lowercase() != "go" {
         return;
     }
+    let mut game = DragonMaze::new();
+    
 
     enable_raw_mode().unwrap(); // Enable raw mode to suppress character output
     if game.autoplay {
