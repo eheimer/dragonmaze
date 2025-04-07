@@ -10,6 +10,7 @@ const MAZE_SIZE: usize = 13;
 
 pub struct DragonMaze {
     pub maze: [[i32; MAZE_SIZE]; MAZE_SIZE],
+    pub anger: i32,
     pub render_grid: [[bool; MAZE_SIZE * 3 + 1]; MAZE_SIZE * 3 + 1],
     pub player: (usize, usize),
     pub dragon: (usize, usize),
@@ -36,7 +37,8 @@ const WALLS: [char; 4] = [
 impl DragonMaze {
     pub fn new() -> Self {
         let mut game = DragonMaze {
-            maze: [[15; MAZE_SIZE]; MAZE_SIZE],
+            maze: [[NORTH + EAST + WEST + SOUTH; MAZE_SIZE]; MAZE_SIZE],
+            anger: 10,
             render_grid: [[false; MAZE_SIZE * 3 + 1]; MAZE_SIZE * 3 + 1],
             player: (0, rand::rng().random_range(0..MAZE_SIZE)),
             dragon: (MAZE_SIZE - 1, rand::rng().random_range(0..MAZE_SIZE)),
@@ -396,27 +398,72 @@ impl DragonMaze {
     }
 
     pub fn move_dragon(&mut self) {
-        let directions = [(1, 0), (-1, 0), (0, 1), (0, -1)];
-        let mut rng = rand::rng();
-        let (dx, dy) = directions.choose(&mut rng).unwrap();
-        let direction = match (dx, dy) {
-            (1, 0) => EAST,
-            (-1, 0) => WEST,
-            (0, 1) => SOUTH,
-            (0, -1) => NORTH,
-            _ => 0,
-        };
-        let old_x = self.dragon.0;
-        let old_y = self.dragon.1;
-        let new_x = (self.dragon.0 as isize + dx).clamp(0, MAZE_SIZE as isize - 1) as usize;
-        let new_y = (self.dragon.1 as isize + dy).clamp(0, MAZE_SIZE as isize - 1) as usize;
-        if self.has_path(old_x, old_y, direction) {
+        let (player_x, player_y) = self.player;
+        let (dragon_x, dragon_y) = self.dragon;
+
+        // Initialize visit count for the dragon's current cell if not already done
+        let visit_count = self.maze[dragon_x][dragon_y] >> 4; // Use higher bits for visit count
+        let mut new_visit_count = visit_count + 1;
+
+        if new_visit_count > self.anger {
+            // Reset visit count and move directly toward the player ignoring walls
+            new_visit_count = 0;
+            self.maze[dragon_x][dragon_y] = (self.maze[dragon_x][dragon_y] & 0xF) | (new_visit_count << 4);
+
+            let dx = player_x as isize - dragon_x as isize;
+            let dy = player_y as isize - dragon_y as isize;
+
+            let (move_x, move_y) = if dx.abs() >= dy.abs() {
+                (dx.signum(), 0) // Move along the longest x-axis
+            } else {
+                (0, dy.signum()) // Move along the longest y-axis
+            };
+
+            let new_x = (dragon_x as isize + move_x).clamp(0, MAZE_SIZE as isize - 1) as usize;
+            let new_y = (dragon_y as isize + move_y).clamp(0, MAZE_SIZE as isize - 1) as usize;
+
             self.dragon = (new_x, new_y);
-        } else {
-            //there's a chance the dragon will climb over the wall
+            self.draw_cell(dragon_x, dragon_y);
+            self.draw_cell(new_x, new_y);
+            return;
         }
-        self.draw_cell(old_x, old_y);
-        self.draw_cell(new_x, new_y);
+
+        // Update the visit count in the maze
+        self.maze[dragon_x][dragon_y] = (self.maze[dragon_x][dragon_y] & 0xF) | (new_visit_count << 4);
+
+        let dx = player_x as isize - dragon_x as isize;
+        let dy = player_y as isize - dragon_y as isize;
+
+        let mut moves = vec![
+            ((dx.signum(), 0), dx.abs() >= dy.abs()), // 1. Move toward the player along the longest axis
+            ((0, dy.signum()), dx.abs() < dy.abs()),  // 2. Move toward the player along the shortest axis
+            ((0, -dy.signum()), dx.abs() < dy.abs()), // 3. Move away from the player along the shortest axis
+            ((-dx.signum(), 0), dx.abs() >= dy.abs()), // 4. Move away from the player along the longest axis
+        ];
+
+        // Sort moves by priority (true first)
+        moves.sort_by_key(|&(_, priority)| !priority);
+
+        for ((dx, dy), _) in moves {
+            let new_x = (dragon_x as isize + dx).clamp(0, MAZE_SIZE as isize - 1) as usize;
+            let new_y = (dragon_y as isize + dy).clamp(0, MAZE_SIZE as isize - 1) as usize;
+
+            let direction = match (dx, dy) {
+                (1, 0) => EAST,
+                (-1, 0) => WEST,
+                (0, 1) => SOUTH,
+                (0, -1) => NORTH,
+                _ => 0,
+            };
+
+            if self.has_path(dragon_x, dragon_y, direction) {
+                self.dragon = (new_x, new_y);
+                self.draw_cell(dragon_x, dragon_y);
+                self.draw_cell(new_x, new_y);
+                return;
+            }
+        }
+        // If no valid move is found (shouldn't happen), stay in place
     }
 
     pub fn win(&self) {
