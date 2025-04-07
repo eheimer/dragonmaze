@@ -26,8 +26,6 @@ const SOUTH: i32 = 2;
 const EAST: i32 = 4;
 const WEST: i32 = 8;
 
-const PAUSE: u64 = 100;
-
 const WALLS: [char; 4] = [
     ' ', // 0000
     '█', // 2588
@@ -45,53 +43,49 @@ impl DragonMaze {
             exit: (MAZE_SIZE - 1, rand::rng().random_range(0..MAZE_SIZE)),
             setup: true,
             score: 0,
-            autoplay: true,
+            autoplay: false,
             AUTOPLAY_DELAY: 20,
         };
 
         game.score = 1000;
 
-        //hide the cursor
-        execute!(io::stdout(), cursor::Hide).unwrap();
-
-        // draw the full maze grid
-        game.init_render_grid();
-        execute!(io::stdout(), Clear(ClearType::All)).unwrap();
-        for y in 0..MAZE_SIZE * 3 + 1 {
-            for x in 0..MAZE_SIZE * 3 + 1 {
-                game.draw_pixel(x, y);
-            }
-        }
-        // output credits
-        execute!(io::stdout(), cursor::MoveTo(0, 20)).unwrap();
-        print!("DRAGON MAZE");
-        execute!(io::stdout(), cursor::MoveTo(24, 20)).unwrap();
-        print!("GARY  J. SHANNON");
-
-        // generate the maze
+        // Generate the maze
         game.generate_maze();
 
-        // clear the maze grid except for the outer border
-        for y in 1..MAZE_SIZE * 3 {
-            for x in 1..MAZE_SIZE * 3 {
-                game.render_grid[x][y] = false;
-                game.draw_pixel(x, y);
-            }
-        }
-        // place and draw the exit
+        // Initialize the render grid to represent the generated maze
+        game.init_render_grid();
+
+        // Place and draw the exit
         game.maze[game.exit.0][game.exit.1] &= !EAST;
         game.remove_wall(game.exit.0, game.exit.1, EAST);
 
         game.setup = false;
-        execute!(io::stdout(), cursor::MoveTo(0, 21)).unwrap();
-        print!("THE MAZE IS READY");
-        io::stdout().flush().unwrap();
-
-        // draw the player and dragon
-        game.draw_cell(game.player.0, game.player.1);
-        game.draw_cell(game.dragon.0, game.dragon.1);
 
         game
+    }
+
+    pub fn draw_maze(&mut self) {
+        execute!(io::stdout(), Clear(ClearType::All)).unwrap();
+        for y in 0..MAZE_SIZE * 3 + 1 {
+            for x in 0..MAZE_SIZE * 3 + 1 {
+                self.draw_pixel(x, y);
+            }
+        }
+
+        // Output credits
+        execute!(io::stdout(), cursor::MoveTo(0, 20)).unwrap();
+        print!("DRAGON MAZE");
+        execute!(io::stdout(), cursor::MoveTo(24, 20)).unwrap();
+        print!("GARY  J. SHANNON");
+        io::stdout().flush().unwrap();
+    }
+
+    pub fn clear_internal_walls(&mut self) {
+        for y in 1..MAZE_SIZE * 3 {
+            for x in 1..MAZE_SIZE * 3 {
+                self.render_grid[x][y] = false;
+            }
+        }
     }
 
     fn generate_maze(&mut self) {
@@ -105,8 +99,6 @@ impl DragonMaze {
         visited[start_x][start_y] = true;
 
         while let Some((x, y)) = stack.pop() {
-            let pause_duration = if self.autoplay { 20 } else { PAUSE };
-            std::thread::sleep(std::time::Duration::from_millis(pause_duration));
             let mut neighbors = Vec::new();
 
             if x > 0 && !visited[x - 1][y] {
@@ -125,7 +117,6 @@ impl DragonMaze {
             if !neighbors.is_empty() {
                 // I want to pause here for an arbitrary amount of time
                 // so the user can see the maze being generated
-                std::thread::sleep(std::time::Duration::from_millis(pause_duration));
                 stack.push((x, y));
                 let &(nx, ny, wall, opposite_wall) = neighbors.choose(&mut rng).unwrap();
                 self.maze[x][y] &= !wall; // Remove the wall between the current cell and the neighbor
@@ -143,52 +134,58 @@ impl DragonMaze {
      ** render_grid coordinates, then turn off the appropriate pixels
      */
     fn remove_wall(&mut self, x: usize, y: usize, direction: i32) {
-        // let x = x * 3 + 1;
-        // let y = y * 3 + 1;
         match direction {
             NORTH => {
                 self.render_grid[x * 3 + 1][y * 3] = false;
                 self.render_grid[x * 3 + 2][y * 3] = false;
-                self.draw_pixel(x * 3 + 1, y * 3);
-                self.draw_pixel(x * 3 + 2, y * 3);
             }
             SOUTH => {
                 self.render_grid[x * 3 + 1][y * 3 + 3] = false;
                 self.render_grid[x * 3 + 2][y * 3 + 3] = false;
-                self.draw_pixel(x * 3 + 1, y * 3 + 3);
-                self.draw_pixel(x * 3 + 2, y * 3 + 3);
             }
             EAST => {
                 self.render_grid[x * 3 + 3][y * 3 + 1] = false;
                 self.render_grid[x * 3 + 3][y * 3 + 2] = false;
-                self.draw_pixel(x * 3 + 3, y * 3 + 1);
-                self.draw_pixel(x * 3 + 3, y * 3 + 2);
             }
             WEST => {
                 self.render_grid[x * 3][y * 3 + 1] = false;
                 self.render_grid[x * 3][y * 3 + 2] = false;
-                self.draw_pixel(x * 3, y * 3 + 1);
-                self.draw_pixel(x * 3, y * 3 + 2);
             }
             _ => {}
         }
     }
 
     fn init_render_grid(&mut self) {
-        // clear the render_grid
-        for row in self.render_grid.iter_mut() {
-            for cell in row.iter_mut() {
-                *cell = false;
+        if !self.setup { return; }
+        // Loop through each cell of the maze array and set the walls in the render_grid
+        for x in 0..MAZE_SIZE {
+            for y in 0..MAZE_SIZE {
+                if self.maze[x][y] & NORTH != 0 {
+                    self.render_grid[x * 3][y * 3] = true;
+                    self.render_grid[x * 3 + 1][y * 3] = true;
+                    self.render_grid[x * 3 + 2][y * 3] = true;
+                    self.render_grid[x * 3 + 3][y * 3] = true;
+                }
+                if self.maze[x][y] & SOUTH != 0 {
+                    self.render_grid[x * 3][y * 3 + 3] = true;
+                    self.render_grid[x * 3 + 1][y * 3 + 3] = true;
+                    self.render_grid[x * 3 + 2][y * 3 + 3] = true;
+                    self.render_grid[x * 3 + 3][y * 3 + 3] = true;
+                }
+                if self.maze[x][y] & EAST != 0 {
+                    self.render_grid[x * 3 + 3][y * 3] = true;
+                    self.render_grid[x * 3 + 3][y * 3 + 1] = true;
+                    self.render_grid[x * 3 + 3][y * 3 + 2] = true;
+                    self.render_grid[x * 3 + 3][y * 3 + 3] = true;
+                }
+                if self.maze[x][y] & WEST != 0 {
+                    self.render_grid[x * 3][y * 3] = true;
+                    self.render_grid[x * 3][y * 3 + 1] = true;
+                    self.render_grid[x * 3][y * 3 + 2] = true;
+                    self.render_grid[x * 3][y * 3 + 3] = true;
+                }
             }
         }
-        // draw grid lines
-        for y in (0..MAZE_SIZE * 3 + 1).step_by(3) {
-            self.hlin(0, y, MAZE_SIZE * 3 + 1);
-        }
-        for x in (0..MAZE_SIZE * 3 + 1).step_by(3) {
-            self.vlin(x, 0, MAZE_SIZE * 3 + 1);
-        }
-        //self.draw_initial_screen();
     }
 
     // this function has to take x,y from the render_grid and apply the conversion
@@ -216,34 +213,6 @@ impl DragonMaze {
         //     return render_y == (3 * maze_y + 1) / 2;
         // }
         false
-    }
-
-    fn hlin(&mut self, x: usize, y: usize, len: usize) {
-        if len == 0 {
-            return;
-        }
-        //clamp x and y to the render_grid size
-        let start_col = x.clamp(0, MAZE_SIZE * 3);
-        let row = y.clamp(0, MAZE_SIZE * 3);
-        let len = len.clamp(0, MAZE_SIZE * 3 - start_col + 1);
-
-        for column in start_col..start_col + len {
-            self.render_grid[column][row] = true;
-        }
-    }
-
-    fn vlin(&mut self, x: usize, y: usize, len: usize) {
-        if len == 0 {
-            return;
-        }
-        //clamp x and y to the render_grid size
-        let column = x.clamp(0, MAZE_SIZE * 3);
-        let start_row = y.clamp(0, MAZE_SIZE * 3);
-        let len = len.clamp(0, MAZE_SIZE * 3 - start_row + 1);
-
-        for row in start_row..start_row + len {
-            self.render_grid[column][row] = true;
-        }
     }
 
     fn draw_pixel(&mut self, x: usize, y: usize) {

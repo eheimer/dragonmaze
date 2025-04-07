@@ -37,14 +37,16 @@ fn print_instructions() {
 }
 
 fn main() {
-    let autoplay = true;
+    let mut game = DragonMaze::new();
     execute!(io::stdout(), EnterAlternateScreen, Clear(ClearType::All)).unwrap();
-    print_instructions();
 
-    if autoplay {
-        let mut game = DragonMaze::new();
-    
+    if game.autoplay {
         enable_raw_mode().unwrap();
+        execute!(io::stdout(), cursor::Hide).unwrap();
+
+        game.clear_internal_walls();
+        game.draw_maze();
+
         let directions = [(1, 0), (-1, 0), (0, 1), (0, -1)];
         let mut rng = rand::rng();
         loop {
@@ -65,39 +67,34 @@ fn main() {
         disable_raw_mode().unwrap();
         execute!(io::stdout(), cursor::MoveTo(0, 24)).unwrap();
         return;
-    }
-
-    // Wait for the user to type "go" to start the game
-    print!("TYPE 'GO' TO BEGIN ");
-    io::stdout().flush().unwrap();
-    let mut input = String::new();
-    io::stdin().read_line(&mut input).unwrap();
-    if input.trim().to_lowercase() != "go" {
-        return;
-    }
-    let mut game = DragonMaze::new();
-    
-
-    enable_raw_mode().unwrap(); // Enable raw mode to suppress character output
-    if game.autoplay {
-        let directions = [(1, 0), (-1, 0), (0, 1), (0, -1)];
-        let mut rng = rand::rng();
-        loop {
-            let (dx, dy) = directions[rng.random_range(0..directions.len())];
-            game.move_player(dx, dy);
-            if game.autoplay {
-                std::thread::sleep(std::time::Duration::from_millis(game.AUTOPLAY_DELAY));
-            }
-            game.move_dragon();
-            if game.player == game.exit {
-                game.win();
-                break;
-            } else if game.player == game.dragon {
-                game.lose();
-                break;
-            }
-        }
     } else {
+        print_instructions();
+        // Wait for the user to type "go" to start the game
+        print!("TYPE 'GO' TO BEGIN ");
+        io::stdout().flush().unwrap();
+        let mut input = String::new();
+        io::stdin().read_line(&mut input).unwrap();
+        if input.trim().to_lowercase() != "go" {
+            return;
+        }
+
+        enable_raw_mode().unwrap();
+        execute!(io::stdout(), cursor::Hide).unwrap();
+
+        game.draw_maze();
+
+        // wait 10 seconds before starting the game
+        for i in (1..=10).rev() {
+            execute!(io::stdout(), cursor::MoveTo(0, 22), Clear(ClearType::CurrentLine)).unwrap();
+            println!("MEMORIZE!  GAME BEGINS IN {} SECONDS...", i);
+            io::stdout().flush().unwrap();
+            std::thread::sleep(std::time::Duration::from_secs(1));
+        }
+        io::stdout().flush().unwrap();
+
+        game.clear_internal_walls();
+        game.draw_maze();
+
         loop {
             if let Event::Key(KeyEvent { code, .. }) = read().unwrap() {
                 match code {
